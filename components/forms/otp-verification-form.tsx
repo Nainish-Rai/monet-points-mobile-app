@@ -47,6 +47,9 @@ const OtpVerificationForm = ({
             color: "#ffffff",
             fontSize: 20,
           },
+          pinCodeContainerStyle: {
+            borderColor: "#666",
+          },
         }}
         numberOfDigits={6}
         onTextChange={(text) => setOtp(text)}

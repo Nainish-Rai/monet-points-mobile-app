@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  TextInput,
 } from "react-native";
 
 interface LoginFormProps {
@@ -70,12 +71,22 @@ const LoginForm = ({ isLoading, error, onSuccess }: LoginFormProps) => {
         containerButtonStyle={styles.countryPickerButton}
         countryCode="IN"
       /> */}
+      <TextInput
+        className="bg-black border border-neutral-800 p-4 text-white rounded-2xl"
+        placeholder="Enter phone number"
+        placeholderTextColor="#666"
+        value={phoneNumber}
+        onChangeText={setPhoneNumber}
+        keyboardType="phone-pad"
+        maxLength={10}
+        editable={!isLoading}
+      />
 
       {error && <Text className="text-red-500 text-sm">{error}</Text>}
       <TouchableOpacity
         className={`${
-          isValidPhoneNumber ? "bg-yellow-500" : "bg-neutral-800"
-        } p-4 rounded-lg transition-colors`}
+          isValidPhoneNumber ? "bg-yellow-500/90" : "bg-neutral-800/50"
+        } p-4 rounded-2xl transition-colors`}
         onPress={handleSubmit}
         disabled={!isValidPhoneNumber || isLoading}
       >
@@ -83,7 +94,7 @@ const LoginForm = ({ isLoading, error, onSuccess }: LoginFormProps) => {
           <ActivityIndicator color={isValidPhoneNumber ? "#000" : "#666"} />
         ) : (
           <Text
-            className={`text-center font-bold text-lg ${
+            className={`text-center font-bold  text-lg ${
               isValidPhoneNumber ? "text-black" : "text-neutral-500"
             }`}
           >

@@ -1,4 +1,14 @@
-import { View, Text } from "react-native";
+import {
+  View,
+  Text,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+  TouchableOpacity,
+  Animated,
+} from "react-native";
+
 import React, { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoginForm from "../components/forms/login-form";
@@ -11,6 +21,7 @@ import OtpVerificationForm from "@/components/forms/otp-verification-form";
 import { Token } from "@/types/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useLoginStore from "@/store/useLoginStore";
+import { useAuth } from "@/auth/authContext";
 
 type Tokens = {
   access: Token;
@@ -25,6 +36,7 @@ interface OtpResponse {
 
 function LoginScreen() {
   const [isLoading, setIsLoading] = React.useState(false);
+
   const [error, setError] = React.useState<string>();
 
   const { setAccessToken, setConsumerId, setRefreshToken } = useTokenStore();
@@ -48,22 +60,10 @@ function LoginScreen() {
     requestId,
   } = useLoginStore();
 
-  // Add authentication check effect with AsyncStorage
-  useEffect(() => {
-    const checkTokens = async () => {
-      try {
-        const storedAccessToken = await AsyncStorage.getItem("accessToken");
-        if (storedAccessToken) {
-          setAccessToken(JSON.parse(storedAccessToken));
-          router.replace("/(tabs)");
-        }
-      } catch (error) {
-        console.error("Error checking stored tokens:", error);
-      }
-    };
+  const { login } = useAuth();
 
-    checkTokens();
-  }, []);
+  const loginFadeAnim = React.useRef(new Animated.Value(1)).current;
+  const otpFadeAnim = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (loginData) {
@@ -71,29 +71,48 @@ function LoginScreen() {
     }
 
     if (verifyOtpData) {
-      // Redirect to dashboard
-      const { id, tokens } = verifyOtpData;
+      const { tokens } = verifyOtpData;
       const { access, refresh } = tokens;
 
-      // Store tokens in AsyncStorage
-      const storeTokens = async () => {
-        try {
-          await AsyncStorage.setItem("accessToken", JSON.stringify(access));
-          await AsyncStorage.setItem("refreshToken", JSON.stringify(refresh));
-          await AsyncStorage.setItem("consumerId", id);
-        } catch (error) {
-          console.error("Error storing tokens:", error);
-        }
-      };
+      login({
+        accessToken: access.token,
+        refreshToken: refresh.token,
+      });
 
-      storeTokens();
-      setAccessToken(access);
-      setRefreshToken(refresh);
-      setConsumerId(id);
-      router.push("/(tabs)");
+      router.replace("/(tabs)");
       setCurrentView("login");
     }
   }, [loginData, verifyOtpData]);
+
+  useEffect(() => {
+    if (currentView === "otp") {
+      Animated.parallel([
+        Animated.timing(loginFadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(otpFadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(loginFadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(otpFadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [currentView]);
 
   const handleLogin = async (data: { mobileNumber: string }) => {
     try {
@@ -120,13 +139,6 @@ function LoginScreen() {
         await response.json();
 
       if (result.requestId) {
-        // router.push({
-        //   pathname: "/otp",
-        //   params: {
-        //     requestId: result.requestId,
-        //     phone: data.mobileNumber,
-        //   },
-        // });
         setMobileNumber(data.mobileNumber);
         setCurrentView("otp");
         setRequestId(result.requestId);
@@ -170,7 +182,6 @@ function LoginScreen() {
       if (result.id) {
         const { access, refresh } = result.tokens;
 
-        // Store tokens in AsyncStorage
         await AsyncStorage.setItem("accessToken", JSON.stringify(access));
         await AsyncStorage.setItem("refreshToken", JSON.stringify(refresh));
         await AsyncStorage.setItem("consumerId", result.id);
@@ -178,8 +189,8 @@ function LoginScreen() {
         setAccessToken(access);
         setRefreshToken(refresh);
         setConsumerId(result.id);
-        router.replace("/(tabs)");
         setCurrentView("login");
+        router.replace("/(tabs)");
       }
     } catch (err) {
       setError(
@@ -194,45 +205,74 @@ function LoginScreen() {
 
   return (
     <SafeAreaView>
-      <View className="min-h-screen bg-black flex  justify-center px-4">
-        <View className="space-y-6  pt-12">
-          <View className="space-y-2 mb-4">
-            <Text className="text-white text-3xl font-bold">Welcome Back</Text>
-            <Text className="text-neutral-400">
-              Sign in using your mobile number
-            </Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View className="min-h-screen bg-black flex pt-[52%]  px-4">
+            <View className="space-y-6  pt-12">
+              <Animated.View
+                style={{
+                  opacity: loginFadeAnim,
+                  display: currentView === "login" ? "flex" : "none",
+                }}
+              >
+                <View className="space-y-2 mb-4">
+                  <Text className="text-white text-3xl font-bold">
+                    Welcome Back
+                  </Text>
+                  <Text className="text-neutral-400">
+                    Sign in using your mobile number
+                  </Text>
+                </View>
+                <LoginForm
+                  isLoading={isLoading}
+                  error={error}
+                  onSuccess={(data) => {
+                    handleLogin(data);
+                  }}
+                />
+              </Animated.View>
+
+              <Animated.View
+                style={{
+                  opacity: otpFadeAnim,
+                  display: currentView === "otp" ? "flex" : "none",
+                }}
+              >
+                <View className="space-y-2 mb-4">
+                  <View>
+                    <TouchableOpacity onPress={() => setCurrentView("login")}>
+                      <Text className="text-yellow-500">Back</Text>
+                    </TouchableOpacity>
+                    <Text className="text-white text-3xl font-bold">
+                      Verify OTP
+                    </Text>
+                  </View>
+                  <Text className="text-neutral-400">
+                    Enter the OTP sent to your mobile number
+                  </Text>
+                </View>
+                <OtpVerificationForm
+                  error={errorMessage}
+                  isLoading={isLoading}
+                  onSuccess={(data) => {
+                    handleOtp(data);
+                  }}
+                />
+              </Animated.View>
+
+              <View className="mt-4">
+                <Text className="text-neutral-500 text-center text-sm">
+                  By continuing, you agree to our{" "}
+                  <Text className="text-yellow-500">Terms of Service</Text> and{" "}
+                  <Text className="text-yellow-500">Privacy Policy</Text>
+                </Text>
+              </View>
+            </View>
           </View>
-
-          {currentView === "login" && (
-            <LoginForm
-              isLoading={isLoading}
-              error={error}
-              onSuccess={(data) => {
-                // handleConsumerLogin("+91", data.mobileNumber);
-                handleLogin(data);
-              }}
-            />
-          )}
-
-          {currentView === "otp" && (
-            <OtpVerificationForm
-              error={errorMessage}
-              onSuccess={(data) => {
-                // handleLoginVerifyOtp(data.otp);
-                handleOtp(data);
-              }}
-            />
-          )}
-
-          <View className="mt-4">
-            <Text className="text-neutral-500 text-center text-sm">
-              By continuing, you agree to our{" "}
-              <Text className="text-yellow-500">Terms of Service</Text> and{" "}
-              <Text className="text-yellow-500">Privacy Policy</Text>
-            </Text>
-          </View>
-        </View>
-      </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
